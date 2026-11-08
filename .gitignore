@@ -13,7 +13,7 @@ client/.env
 
 # Build outputs
 dist/
-client/dist/
+# client/dist/ (committed to guarantee 100% build reliability on Render)
 build/
 .output/
 

@@ -4,7 +4,7 @@ services:
     name: campusmate-ai
     env: node
     plan: free
-    region: oregon # or frankfurt / singapore
+    region: oregon
     buildCommand: npm run render-build
     startCommand: npm run render-start
     healthCheckPath: /api/health
@@ -17,9 +17,9 @@ services:
         generateValue: true
       - key: DB_TYPE
         value: sqlite
+      - key: UPI_ID
+        value: pavanb1624@okhdfcbank
+      - key: UPI_PAYEE_NAME
+        value: CampusMate
       - key: OPENAI_API_KEY
-        sync: false
-      - key: RAZORPAY_KEY_ID
-        sync: false
-      - key: RAZORPAY_KEY_SECRET
-        sync: false
+        value: none
