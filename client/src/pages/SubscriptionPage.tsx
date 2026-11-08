@@ -42,20 +42,81 @@ export const SubscriptionPage: React.FC = () => {
   const handleUpgrade = async (tier: 'plus' | 'pro') => {
     setUpgradingTier(tier);
     try {
-      const mockPayId = `pay_rzp_${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-      const res = await api.post('/subscriptions/upgrade', {
-        targetTier: tier,
-        paymentId: mockPayId
+      // 1. Create order on backend (via Razorpay or sandbox)
+      const orderRes = await api.post('/subscriptions/create-order', { targetTier: tier });
+      if (!orderRes.success) {
+        throw new Error(orderRes.message || 'Could not initiate payment order.');
+      }
+
+      // 2. If Razorpay SDK is loaded and live/test keys are configured
+      if (!orderRes.isSandboxDemo && (window as any).Razorpay) {
+        const options = {
+          key: orderRes.keyId,
+          amount: orderRes.amount,
+          currency: orderRes.currency,
+          name: 'CampusMate AI',
+          description: `${orderRes.tierName} — 30 Days Subscription`,
+          order_id: orderRes.orderId,
+          handler: async function (response: any) {
+            try {
+              const verifyRes = await api.post('/subscriptions/verify-payment', {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                targetTier: tier
+              });
+
+              if (verifyRes.success) {
+                confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+                alert(verifyRes.message || 'Payment verified! Plan activated.');
+                await refreshProfile();
+                fetchSubscription();
+              }
+            } catch (vErr: any) {
+              alert(vErr.message || 'Payment verification failed.');
+            } finally {
+              setUpgradingTier(null);
+            }
+          },
+          prefill: {
+            name: user?.fullName || 'Student',
+            email: user?.email
+          },
+          theme: {
+            color: '#4F46E5'
+          },
+          modal: {
+            ondismiss: function () {
+              setUpgradingTier(null);
+            }
+          }
+        };
+
+        const rzp = new (window as any).Razorpay(options);
+        rzp.on('payment.failed', function (resp: any) {
+          alert('Payment Failed: ' + (resp.error?.description || 'Transaction canceled.'));
+          setUpgradingTier(null);
+        });
+        rzp.open();
+        return;
+      }
+
+      // 3. Instant Payment Activation (Works immediately when keys are in test/demo mode)
+      const simulatedPaymentId = `pay_rzp_instant_${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+      const verifyRes = await api.post('/subscriptions/verify-payment', {
+        razorpay_order_id: orderRes.orderId,
+        razorpay_payment_id: simulatedPaymentId,
+        targetTier: tier
       });
 
-      if (res.success) {
-        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-        alert(res.message || 'Upgraded successfully!');
+      if (verifyRes.success) {
+        confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+        alert(`Payment Successful! Payment ID: ${simulatedPaymentId}\nUpgraded to ${orderRes.tierName}!`);
         await refreshProfile();
         fetchSubscription();
       }
     } catch (err: any) {
-      alert(err.message || 'Upgrade failed');
+      alert(err.message || 'Payment processing failed. Please try again.');
     } finally {
       setUpgradingTier(null);
     }

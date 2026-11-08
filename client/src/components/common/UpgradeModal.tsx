@@ -21,13 +21,73 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, def
   const handleUpgrade = async () => {
     setIsProcessing(true);
     try {
-      const mockPaymentId = `pay_rzp_${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-      const res = await api.post('/subscriptions/upgrade', {
-        targetTier: selectedTier,
-        paymentId: mockPaymentId,
+      // 1. Create order on backend
+      const orderRes = await api.post('/subscriptions/create-order', { targetTier: selectedTier });
+      if (!orderRes.success) {
+        throw new Error(orderRes.message || 'Could not initiate payment order.');
+      }
+
+      // 2. Real Razorpay modal if active
+      if (!orderRes.isSandboxDemo && (window as any).Razorpay) {
+        const options = {
+          key: orderRes.keyId,
+          amount: orderRes.amount,
+          currency: orderRes.currency,
+          name: 'CampusMate AI',
+          description: `${orderRes.tierName} Access`,
+          order_id: orderRes.orderId,
+          handler: async function (response: any) {
+            try {
+              const verifyRes = await api.post('/subscriptions/verify-payment', {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                targetTier: selectedTier
+              });
+
+              if (verifyRes.success) {
+                confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
+                setSuccessMessage(`Welcome to ${selectedTier === 'pro' ? 'Student Pro' : 'Student Plus'}!`);
+                await refreshProfile();
+                setTimeout(() => {
+                  setSuccessMessage(null);
+                  onClose();
+                }, 1800);
+              }
+            } catch (vErr: any) {
+              alert(vErr.message || 'Payment verification failed.');
+            } finally {
+              setIsProcessing(false);
+            }
+          },
+          prefill: {
+            name: user?.fullName || 'Student',
+            email: user?.email
+          },
+          theme: {
+            color: '#4F46E5'
+          },
+          modal: {
+            ondismiss: function () {
+              setIsProcessing(false);
+            }
+          }
+        };
+
+        const rzp = new (window as any).Razorpay(options);
+        rzp.open();
+        return;
+      }
+
+      // 3. Instant Payment Activation (Demo / Sandbox)
+      const instantPaymentId = `pay_rzp_instant_${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+      const verifyRes = await api.post('/subscriptions/verify-payment', {
+        razorpay_order_id: orderRes.orderId,
+        razorpay_payment_id: instantPaymentId,
+        targetTier: selectedTier
       });
 
-      if (res.success) {
+      if (verifyRes.success) {
         confetti({
           particleCount: 120,
           spread: 70,

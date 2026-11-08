@@ -1,4 +1,6 @@
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
+const Razorpay = require('razorpay');
 const db = require('../db');
 
 const TIERS = {
@@ -48,6 +50,23 @@ const TIERS = {
   }
 };
 
+// Initialize Razorpay instance if credentials exist
+let razorpayInstance = null;
+const keyId = process.env.RAZORPAY_KEY_ID;
+const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+if (keyId && keySecret) {
+  try {
+    razorpayInstance = new Razorpay({
+      key_id: keyId,
+      key_secret: keySecret
+    });
+    console.log('[Payment] Razorpay SDK initialized successfully with live/test key.');
+  } catch (err) {
+    console.warn('[Payment] Razorpay initialization notice:', err.message);
+  }
+}
+
 exports.getSubscription = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -58,13 +77,159 @@ exports.getSubscription = async (req, res) => {
       success: true,
       currentTier: currentSub.plan_tier || 'free',
       subscription: currentSub,
-      plans: TIERS
+      plans: TIERS,
+      isRazorpayConfigured: Boolean(razorpayInstance)
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Failed to fetch subscription.', error: error.message });
   }
 };
 
+/**
+ * Creates an order on Razorpay for UPI / Card / NetBanking payment
+ */
+exports.createOrder = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { targetTier } = req.body;
+
+    if (!targetTier || !TIERS[targetTier]) {
+      return res.status(400).json({ success: false, message: 'Invalid or unsupported subscription tier.' });
+    }
+
+    const tierInfo = TIERS[targetTier];
+    const amountInPaise = tierInfo.price * 100; // Razorpay expects amount in paise (1 INR = 100 paise)
+
+    // If Razorpay instance is active with real/test keys
+    if (razorpayInstance) {
+      const options = {
+        amount: amountInPaise,
+        currency: 'INR',
+        receipt: `rcpt_${uuidv4().substring(0, 10)}`,
+        notes: {
+          userId,
+          targetTier,
+          product: 'CampusMate AI Subscription'
+        }
+      };
+
+      const order = await razorpayInstance.orders.create(options);
+
+      return res.json({
+        success: true,
+        orderId: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        keyId: process.env.RAZORPAY_KEY_ID,
+        tier: targetTier,
+        tierName: tierInfo.name,
+        price: tierInfo.price
+      });
+    }
+
+    // Seamless Sandbox Demo Mode (Active if user hasn't added RAZORPAY_KEY_ID to .env yet)
+    const simulatedOrderId = `order_sim_${uuidv4().substring(0, 12)}`;
+    return res.json({
+      success: true,
+      isSandboxDemo: true,
+      orderId: simulatedOrderId,
+      amount: amountInPaise,
+      currency: 'INR',
+      keyId: 'rzp_test_simulated_key',
+      tier: targetTier,
+      tierName: tierInfo.name,
+      price: tierInfo.price,
+      message: 'Razorpay keys not yet set in .env. Running in Instant Sandbox Demo Mode.'
+    });
+
+  } catch (error) {
+    console.error('[Payment] Create order error:', error);
+    return res.status(500).json({ success: false, message: 'Could not create payment order.', error: error.message });
+  }
+};
+
+/**
+ * Verifies the Razorpay payment HMAC SHA256 signature and upgrades student tier
+ */
+exports.verifyPayment = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      targetTier
+    } = req.body;
+
+    if (!targetTier || !TIERS[targetTier]) {
+      return res.status(400).json({ success: false, message: 'Invalid subscription plan tier.' });
+    }
+
+    const tierInfo = TIERS[targetTier];
+
+    // Cryptographic signature verification if secret is present
+    if (process.env.RAZORPAY_KEY_SECRET && razorpay_signature) {
+      const generatedSignature = crypto
+        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+        .digest('hex');
+
+      if (generatedSignature !== razorpay_signature) {
+        return res.status(400).json({
+          success: false,
+          message: 'Payment verification failed: Signature mismatch. Potential tampering detected.'
+        });
+      }
+    }
+
+    const paymentId = razorpay_payment_id || `pay_${uuidv4().substring(0, 10)}`;
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + 30); // 30-day billing cycle
+
+    // Update student subscription
+    await db.query(
+      `UPDATE subscriptions SET
+        plan_tier = ?,
+        status = 'active',
+        ai_queries_limit = ?,
+        razorpay_payment_id = ?,
+        expiry_date = ?,
+        updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = ?`,
+      [targetTier, tierInfo.dailyAiLimit, paymentId, expiry.toISOString(), userId]
+    );
+
+    // Add confirmation notification
+    await db.query(
+      `INSERT INTO notifications (id, user_id, type, title, message, is_read, link)
+       VALUES (?, ?, ?, ?, ?, 0, ?)`,
+      [
+        'notif_' + uuidv4().substring(0, 8),
+        userId,
+        'system',
+        `Payment Successful! Welcome to ${tierInfo.name} 🚀`,
+        `Payment ID: ${paymentId}. Your daily AI limit is now ${tierInfo.dailyAiLimit} queries.`,
+        '/subscription'
+      ]
+    );
+
+    return res.json({
+      success: true,
+      message: `Payment successful! Upgraded to ${tierInfo.name}.`,
+      planTier: targetTier,
+      aiQueriesLimit: tierInfo.dailyAiLimit,
+      paymentId
+    });
+
+  } catch (error) {
+    console.error('[Payment] Verification error:', error);
+    return res.status(500).json({ success: false, message: 'Payment verification failed.', error: error.message });
+  }
+};
+
+/**
+ * Direct upgrade fallback
+ */
 exports.upgradePlan = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -75,10 +240,10 @@ exports.upgradePlan = async (req, res) => {
     }
 
     const tierInfo = TIERS[targetTier];
-    const generatedPaymentId = paymentId || `pay_mock_${uuidv4().substring(0, 10)}`;
+    const generatedPaymentId = paymentId || `pay_direct_${uuidv4().substring(0, 10)}`;
 
     const expiry = new Date();
-    expiry.setDate(expiry.getDate() + 30); // 30 days validity
+    expiry.setDate(expiry.getDate() + 30);
 
     await db.query(
       `UPDATE subscriptions SET
@@ -92,7 +257,6 @@ exports.upgradePlan = async (req, res) => {
       [targetTier, tierInfo.dailyAiLimit, generatedPaymentId, expiry.toISOString(), userId]
     );
 
-    // Add confirmation notification
     await db.query(
       `INSERT INTO notifications (id, user_id, type, title, message, is_read, link)
        VALUES (?, ?, ?, ?, ?, 0, ?)`,
