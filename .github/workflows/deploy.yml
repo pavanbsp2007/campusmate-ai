@@ -1,0 +1,40 @@
+name: CampusMate AI CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-verify:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+        cache-dependency-path: |
+          server/package-lock.json
+          client/package-lock.json
+
+    - name: Verify & Build Client
+      run: |
+        cd client
+        npm ci
+        npm run build
+
+    - name: Verify Backend Dependencies & Unit Smoke Tests
+      run: |
+        cd server
+        npm ci --only=production
+        node -e "require('./src/db'); console.log('Backend packages loaded cleanly.');"
+
+    - name: Docker Build Check
+      run: |
+        docker build -t campusmate-ai:latest .

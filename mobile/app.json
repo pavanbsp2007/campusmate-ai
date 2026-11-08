@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "CampusMate AI",
+    "slug": "campusmate-ai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#4F46E5",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.campusmate.ai"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#4F46E5"
+      },
+      "package": "com.campusmate.ai"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

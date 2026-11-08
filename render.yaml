@@ -1,0 +1,21 @@
+services:
+  # CampusMate AI - Production Web Application on Render
+  - type: web
+    name: campusmate-ai
+    env: node
+    plan: free
+    region: oregon # or frankfurt / singapore
+    buildCommand: npm run render-build
+    startCommand: npm run render-start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DB_TYPE
+        value: sqlite
+      - key: OPENAI_API_KEY
+        sync: false

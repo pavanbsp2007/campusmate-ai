@@ -1,0 +1,53 @@
+services:
+  # CampusMate AI Web & API Server
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: campusmate_app
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - JWT_SECRET=campusmate_production_super_secret_jwt_key_2026
+      - DB_TYPE=mysql
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_USER=campusmate
+      - DB_PASSWORD=campusmate_secure_pass_2026
+      - DB_NAME=campusmate_db
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - app_uploads:/app/server/uploads
+
+  # Managed MySQL 8.0 Database Container
+  db:
+    image: mysql:8.0
+    container_name: campusmate_mysql
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root_secure_password_2026
+      MYSQL_DATABASE: campusmate_db
+      MYSQL_USER: campusmate
+      MYSQL_PASSWORD: campusmate_secure_pass_2026
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "campusmate", "-pcampusmate_secure_pass_2026"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mysql_data:
+  app_uploads:

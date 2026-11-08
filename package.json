@@ -1,0 +1,25 @@
+{
+  "name": "campusmate-ai",
+  "version": "2.0.0",
+  "description": "CampusMate AI - Your Personal AI-Powered College Companion. Study Smarter. Manage Better. Live Campus Life.",
+  "scripts": {
+    "start": "node server/src/index.js",
+    "build": "cd client && npm install && npm run build && cd ../server && npm install",
+    "render-build": "cd client && npm install && npm run build && cd ../server && npm install",
+    "render-start": "node server/src/index.js",
+    "dev:server": "cd server && npm start",
+    "dev:client": "cd client && npm run dev",
+    "build:client": "cd client && npm run build",
+    "mobile": "cd mobile && npm start"
+  },
+  "keywords": [
+    "campusmate",
+    "college-companion",
+    "ai-tutor",
+    "attendance-calculator",
+    "cgpa-calculator",
+    "study-planner"
+  ],
+  "author": "CampusMate AI Team",
+  "license": "MIT"
+}
