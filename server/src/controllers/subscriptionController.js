@@ -78,7 +78,11 @@ exports.getSubscription = async (req, res) => {
       currentTier: currentSub.plan_tier || 'free',
       subscription: currentSub,
       plans: TIERS,
-      isRazorpayConfigured: Boolean(razorpayInstance)
+      isRazorpayConfigured: Boolean(razorpayInstance),
+      upiConfig: {
+        upiId: process.env.UPI_ID || 'pavanb1624@okhdfcbank',
+        payeeName: process.env.UPI_PAYEE_NAME || 'CampusMate'
+      }
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Failed to fetch subscription.', error: error.message });
@@ -279,5 +283,71 @@ exports.upgradePlan = async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Failed to upgrade plan.', error: error.message });
+  }
+};
+
+/**
+ * Direct Zero-Fee UPI Payment (GPay / PhonePe / Paytm to pavanb1624@okhdfcbank)
+ */
+exports.submitUpiPayment = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { targetTier, utrNumber, payerUpi } = req.body;
+
+    if (!targetTier || !TIERS[targetTier]) {
+      return res.status(400).json({ success: false, message: 'Invalid subscription tier selected.' });
+    }
+
+    if (!utrNumber || utrNumber.trim().length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid 12-digit UPI Reference (UTR) Number.'
+      });
+    }
+
+    const cleanUtr = utrNumber.trim().replace(/\s+/g, '');
+    const tierInfo = TIERS[targetTier];
+    const upiPaymentId = `UPI_${cleanUtr}`;
+
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + 30); // 30-day validity
+
+    // Update student subscription directly
+    await db.query(
+      `UPDATE subscriptions SET
+        plan_tier = ?,
+        status = 'active',
+        ai_queries_limit = ?,
+        razorpay_payment_id = ?,
+        expiry_date = ?,
+        updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = ?`,
+      [targetTier, tierInfo.dailyAiLimit, upiPaymentId, expiry.toISOString(), userId]
+    );
+
+    // Create confirmation notification
+    await db.query(
+      `INSERT INTO notifications (id, user_id, type, title, message, is_read, link)
+       VALUES (?, ?, ?, ?, ?, 0, ?)`,
+      [
+        'notif_' + uuidv4().substring(0, 8),
+        userId,
+        'system',
+        `UPI Payment Received! Welcome to ${tierInfo.name} 🚀`,
+        `UTR No: ${cleanUtr}. Amount: ₹${tierInfo.price}. Your daily AI limit is now ${tierInfo.dailyAiLimit} queries.`,
+        '/subscription'
+      ]
+    );
+
+    return res.json({
+      success: true,
+      message: `UPI Payment verified! Welcome to ${tierInfo.name}.`,
+      planTier: targetTier,
+      aiQueriesLimit: tierInfo.dailyAiLimit,
+      paymentId: upiPaymentId
+    });
+  } catch (error) {
+    console.error('[Payment] UPI submission error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to process UPI payment.', error: error.message });
   }
 };

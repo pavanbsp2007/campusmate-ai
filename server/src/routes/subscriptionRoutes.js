@@ -8,6 +8,7 @@ router.use(authenticate);
 router.get('/', subscriptionController.getSubscription);
 router.post('/create-order', subscriptionController.createOrder);
 router.post('/verify-payment', subscriptionController.verifyPayment);
+router.post('/upi-submit', subscriptionController.submitUpiPayment);
 router.post('/upgrade', subscriptionController.upgradePlan);
 
 module.exports = router;

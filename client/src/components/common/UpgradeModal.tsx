@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { X, Check, Zap, Sparkles, ShieldCheck, ArrowRight } from 'lucide-react';
+import { X, Check, Zap, Sparkles, ShieldCheck, ArrowRight, QrCode } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import confetti from 'canvas-confetti';
+import { UpiPaymentModal } from './UpiPaymentModal';
 
 interface UpgradeModalProps {
   isOpen: boolean;
@@ -13,98 +14,14 @@ interface UpgradeModalProps {
 export const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, defaultTier = 'pro' }) => {
   const { user, refreshProfile } = useAuth();
   const [selectedTier, setSelectedTier] = useState<'plus' | 'pro'>(defaultTier);
+  const [showUpiModal, setShowUpiModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const handleUpgrade = async () => {
-    setIsProcessing(true);
-    try {
-      // 1. Create order on backend
-      const orderRes = await api.post('/subscriptions/create-order', { targetTier: selectedTier });
-      if (!orderRes.success) {
-        throw new Error(orderRes.message || 'Could not initiate payment order.');
-      }
-
-      // 2. Real Razorpay modal if active
-      if (!orderRes.isSandboxDemo && (window as any).Razorpay) {
-        const options = {
-          key: orderRes.keyId,
-          amount: orderRes.amount,
-          currency: orderRes.currency,
-          name: 'CampusMate AI',
-          description: `${orderRes.tierName} Access`,
-          order_id: orderRes.orderId,
-          handler: async function (response: any) {
-            try {
-              const verifyRes = await api.post('/subscriptions/verify-payment', {
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                targetTier: selectedTier
-              });
-
-              if (verifyRes.success) {
-                confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
-                setSuccessMessage(`Welcome to ${selectedTier === 'pro' ? 'Student Pro' : 'Student Plus'}!`);
-                await refreshProfile();
-                setTimeout(() => {
-                  setSuccessMessage(null);
-                  onClose();
-                }, 1800);
-              }
-            } catch (vErr: any) {
-              alert(vErr.message || 'Payment verification failed.');
-            } finally {
-              setIsProcessing(false);
-            }
-          },
-          prefill: {
-            name: user?.fullName || 'Student',
-            email: user?.email
-          },
-          theme: {
-            color: '#4F46E5'
-          },
-          modal: {
-            ondismiss: function () {
-              setIsProcessing(false);
-            }
-          }
-        };
-
-        const rzp = new (window as any).Razorpay(options);
-        rzp.open();
-        return;
-      }
-
-      // 3. Instant Payment Activation (Demo / Sandbox)
-      const instantPaymentId = `pay_rzp_instant_${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-      const verifyRes = await api.post('/subscriptions/verify-payment', {
-        razorpay_order_id: orderRes.orderId,
-        razorpay_payment_id: instantPaymentId,
-        targetTier: selectedTier
-      });
-
-      if (verifyRes.success) {
-        confetti({
-          particleCount: 120,
-          spread: 70,
-          origin: { y: 0.6 },
-        });
-        setSuccessMessage(`Welcome to ${selectedTier === 'pro' ? 'Student Pro' : 'Student Plus'}!`);
-        await refreshProfile();
-        setTimeout(() => {
-          setSuccessMessage(null);
-          onClose();
-        }, 1800);
-      }
-    } catch (err: any) {
-      alert(err.message || 'Upgrade failed. Please try again.');
-    } finally {
-      setIsProcessing(false);
-    }
+  const handleUpgrade = () => {
+    setShowUpiModal(true);
   };
 
   return (
@@ -256,13 +173,30 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, def
                   )}
                 </button>
                 <p className="text-center text-[11px] text-slate-400 mt-2">
-                  Configured with Razorpay sandbox simulation. Instant activation, cancel anytime.
+                  Zero gateway fees. Instant activation via Google Pay, PhonePe, or Paytm.
                 </p>
               </div>
             </>
           )}
         </div>
       </div>
+
+      {/* Direct Zero-Fee UPI Payment Modal */}
+      {showUpiModal && (
+        <UpiPaymentModal
+          isOpen={showUpiModal}
+          tier={selectedTier}
+          onClose={() => {
+            setShowUpiModal(false);
+            onClose();
+          }}
+          onSuccess={() => {
+            refreshProfile();
+            setShowUpiModal(false);
+            onClose();
+          }}
+        />
+      )}
     </div>
   );
 };
