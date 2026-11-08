@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { Footer } from '../components/layout/Footer';
 
 export const LoginPage: React.FC = () => {
   const { login, register, googleLogin, quickLogin } = useAuth();
@@ -326,6 +327,10 @@ export const LoginPage: React.FC = () => {
             </button>
           </form>
         </div>
+      </div>
+
+      <div className="mt-8">
+        <Footer />
       </div>
     </div>
   );

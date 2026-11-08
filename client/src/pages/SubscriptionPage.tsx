@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Sparkles,
   Check,
@@ -7,7 +8,9 @@ import {
   CreditCard,
   CheckCircle2,
   AlertCircle,
-  HelpCircle
+  HelpCircle,
+  RefreshCw,
+  Lock
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -278,10 +281,53 @@ export const SubscriptionPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Payment Security Note */}
-      <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800/60 flex items-center justify-center gap-2 text-xs text-slate-500">
-        <CreditCard size={16} className="text-indigo-600" />
-        <span>Configured with Razorpay sandbox integration. Instant activation and student money-back guarantee.</span>
+      {/* Payment Security & Trust Guarantee */}
+      <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <RefreshCw size={20} />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                7-Day Student Money-Back Guarantee
+              </h4>
+              <p className="text-xs text-slate-500">
+                Not fully satisfied with Student Plus or Student Pro? Request a 100% refund within 7 days.
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/refund-policy"
+            className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline shrink-0"
+          >
+            Read Refund Policy &rarr;
+          </Link>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-4 text-xs text-slate-500">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <ShieldCheck size={15} className="text-emerald-500" />
+              <span>Razorpay Verified Gateway</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Lock size={14} className="text-indigo-500" />
+              <span>256-Bit SSL Encrypted</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <Link to="/terms" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+              Terms &amp; Conditions
+            </Link>
+            <Link to="/privacy" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+              Privacy Policy
+            </Link>
+            <Link to="/contact" className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+              Support Desk
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   );

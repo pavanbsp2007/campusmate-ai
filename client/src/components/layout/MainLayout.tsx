@@ -5,6 +5,7 @@ import { Sidebar } from './Sidebar';
 import { MobileBottomNav } from './MobileBottomNav';
 import { UpgradeModal } from '../common/UpgradeModal';
 import { NotificationDrawer } from '../common/NotificationDrawer';
+import { Footer } from './Footer';
 
 export const MainLayout: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -29,8 +30,11 @@ export const MainLayout: React.FC = () => {
         />
 
         {/* Main Content Area */}
-        <main className="flex-1 min-w-0 overflow-y-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 lg:pb-8">
-          <Outlet />
+        <main className="flex-1 min-w-0 overflow-y-auto flex flex-col justify-between">
+          <div className="px-4 sm:px-6 lg:px-8 py-6 pb-20 lg:pb-8 flex-1">
+            <Outlet />
+          </div>
+          <Footer />
         </main>
       </div>
 

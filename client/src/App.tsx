@@ -26,6 +26,12 @@ import { AdminPage } from './pages/AdminPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { LoginPage } from './pages/LoginPage';
 
+// Legal & Compliance Pages (Razorpay / RBI Mandatory)
+import { TermsPage } from './pages/legal/TermsPage';
+import { PrivacyPage } from './pages/legal/PrivacyPage';
+import { RefundPolicyPage } from './pages/legal/RefundPolicyPage';
+import { ContactPage } from './pages/legal/ContactPage';
+
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isLoading } = useAuth();
 
@@ -50,6 +56,12 @@ export const AppContent: React.FC = () => {
     <Routes>
       {/* Public Login / Auth */}
       <Route path="/login" element={<LoginPage />} />
+
+      {/* Public Legal & Compliance Pages (Accessible without login for Razorpay review) */}
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/refund-policy" element={<RefundPolicyPage />} />
+      <Route path="/contact" element={<ContactPage />} />
 
       {/* Protected Routes */}
       <Route
